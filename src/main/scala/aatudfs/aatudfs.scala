@@ -3,7 +3,8 @@ import org.apache.spark.sql.api.java.UDF2
 import org.apache.spark.sql.api.java.UDF3
 import org.apache.spark.sql.api.java.UDF4
 import org.apache.spark.sql.api.java.UDF5
-import scala.collection.mutable
+
+import scala.collection.{immutable, mutable}
 import scala.math.abs
 import scala.math.round
 import scala.math.pow
@@ -183,6 +184,25 @@ class LCSInRange_Double extends UDF5[Seq[Int],Seq[Int],Int,Int,Int, Int] {
     aatAlgo.lcs(db.slice(from,to).map(x=> round(x*pow(10.0,ndigits)).asInstanceOf[Int] ),
                 query.slice(from,to).map(x=> round(x*pow(10.0,ndigits)).asInstanceOf[Int] )
                )
+  }
+}
+// actionLCS 모델을 위한 것
+class LCS_AAT extends UDF2[Seq[String],Seq[String], Seq[Int]] {
+  override def call(db: Seq[String],query: Seq[String]): Seq[Int] = {
+    val minsize = min(db.size,query.size)
+
+    def go(n:Int):List[Int] = {
+      if (minsize < (n+1)*1000 ){
+        go(n-1)
+      } else if (n<0){
+        Nil
+      } else if (n == 0){
+        List(aatAlgo.lcs(db.slice(n*1000,(n+1)*1000),query.slice(n*1000,(n+1)*1000)))
+      }else{
+        aatAlgo.lcs(db.slice(n*1000,(n+1)*1000),query.slice(n*1000,(n+1)*1000))::go(n-1)
+      }
+    }
+    go(4).reverse
   }
 }
 
