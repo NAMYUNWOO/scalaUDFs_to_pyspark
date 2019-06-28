@@ -4,7 +4,7 @@ import org.apache.spark.sql.api.java.UDF3
 import org.apache.spark.sql.api.java.UDF4
 import org.apache.spark.sql.api.java.UDF5
 
-import scala.collection.{immutable, mutable}
+import scala.collection.mutable
 import scala.math.abs
 import scala.math.round
 import scala.math.pow
@@ -70,44 +70,31 @@ object aatAlgo{
   }
 
   def dtw[A](db: Seq[A],query: Seq[A])(dist:(A,A) => Double): Double = {
-    import scala.collection.mutable
     val dbSize : Int = db.size
     val querySize : Int = query.size
-    val cache_i_J:mutable.ArrayBuffer[Double] = mutable.ArrayBuffer(dist(db.head,db.head))
+    val cache_i_J:mutable.ArrayBuffer[Double] = mutable.ArrayBuffer(dist(db.head,query.head))
     var cache_i_j1:Double = 1073741824.0
     var cache_i_j1_temp: Double = 1073741824.0
     var curdist:Double = 0.0
+    var candis:List[Double] = Nil
     for (j <- 1 until dbSize){
       cache_i_J +=  cache_i_J(j - 1) + dist(query.head,db(j))
     }
     /*
-    cache_i_j1 == cache[i][j-1]
-    cache_i_J(j) == cache[i-1][j]
-    cache_i_J(j-1) == cache[i-1][j-1]
+    cache_i_j1 == cache[i][j-1] left
+    cache_i_J(j) == cache[i-1][j] up
+    cache_i_J(j-1) == cache[i-1][j-1] left up
     */
     for (i <- 1 until querySize){
       for (j <- 0 until dbSize) {
-        curdist = dist(query(i),db(j)) 
+        curdist = dist(query(i),db(j))
         if (j == 0){
           cache_i_j1 = curdist + cache_i_J(j)
         }else{
-          if ( cache_i_j1 < cache_i_J(j)) {
-            if ( cache_i_j1 < cache_i_J(j)){
-              //cache_i_j1  min val
-              cache_i_j1_temp = curdist + cache_i_j1
-            }else{
-              // cache_i_J(j-1) max val
-              cache_i_j1_temp = curdist + cache_i_J(j-1)
-            }
-          }else{
-            //cache_i_J(j) < cache_i_j1
-            if ( cache_i_j1 < cache_i_J(j)) {
-              // cache_i_J(j) max val
-              cache_i_j1_temp = curdist + cache_i_J(j)
-            }else{
-              // cache_i_J(j-1) max val
-              cache_i_j1_temp = curdist + cache_i_J(j-1)
-            }
+          candis  = List(cache_i_J(j) + curdist,cache_i_J(j-1) + curdist)
+          cache_i_j1_temp = cache_i_j1 + curdist
+          for (idx <-candis.indices){
+            cache_i_j1_temp  = min(cache_i_j1_temp,candis(idx))
           }
           cache_i_J(j-1) = cache_i_j1
           cache_i_j1 = cache_i_j1_temp
@@ -117,6 +104,60 @@ object aatAlgo{
     }
     cache_i_J(dbSize-1)
   }
+
+  def yw_dtw[A](db: Seq[A],query: Seq[A])(dist:(A,A) => Double): Double  = {
+    import scala.collection.mutable
+    val dbSize : Int = db.size
+    val querySize : Int = query.size
+    val cache_i_J:mutable.ArrayBuffer[Double] = mutable.ArrayBuffer(dist(db.head,query.head))
+    var cache_i_j1:Double = 1073741824.0
+    var cache_i_j1_temp:Double = 1073741824.0
+    var disti:Double = 0.0
+    var curdist:Double = 0.0
+    var cand1: Double = 0.0
+    for (j <- 1 until dbSize){
+      disti = dist(query.head,db(j))
+      if (cache_i_J(j-1) < disti)
+      {
+        cache_i_J +=  cache_i_J(j - 1)
+      }
+      else
+      {
+        cache_i_J += disti
+      }
+    }
+
+    for (i <- 1 until querySize){
+      // db는 무조건 query 보다 커야함
+      for (j <- i until dbSize) {
+        curdist = dist(query(i),db(j))
+        if (i == j) {
+          cache_i_j1_temp = curdist + cache_i_J(j-1)
+          cache_i_J(j-1) = cache_i_j1
+          cache_i_j1 = cache_i_j1_temp
+        }
+        else{
+          cand1 = cache_i_j1 - dist(query(i), db(j-1))
+          if (cache_i_J(j-1) < cand1 ){
+            cache_i_j1_temp = curdist + cache_i_J(j-1)
+          }else{
+            cache_i_j1_temp = curdist + cand1
+          }
+          cache_i_J(j-1) = cache_i_j1
+          cache_i_j1 = cache_i_j1_temp
+        }
+      }
+      cache_i_J(dbSize-1) = cache_i_j1
+    }
+    var minVal :Double = cache_i_J(querySize-1)
+    for (i <- querySize until dbSize ){
+      if (cache_i_J(i) < minVal ){
+        minVal = cache_i_J(i)
+      }
+    }
+    minVal
+  }
+
 }
 
 /*
@@ -211,6 +252,43 @@ class LCS_AAT extends UDF2[Seq[String],Seq[String], Seq[Int]] {
 DTW 계산
 입력으로 어떤 타입을 원소로 갖는 시퀀스가 들어오느냐에 따라 UDF 를 모두 만든다
  */
+
+class YWDTW_Combination_str extends UDF4[Seq[String],Int, Int, Int, Seq[Double] ] {
+  override def call(sequenceStr: Seq[String],subSeqSize:Int,offSet:Int,by:Int): Seq[Double] = {
+    val dist:(String,String) => Double =  (x:String,y:String) => if (x==y){0.0} else{1.0}
+    val seqSize = sequenceStr.size
+    def go(is:Int,ie:Int,js:Int,je:Int):List[Double] = {
+      if (is < 0 ){
+        Nil
+      }else if (js < 0){
+        go(is-by,ie-by,seqSize-subSeqSize-offSet,seqSize)
+      }else if(((js >=is)&&(ie >= js))||((is >= js)&&(je >= is))){
+        go(is,ie,js-by,je-by)
+      }else if (js >= ie){
+        go(is,ie,js-by,je-by)
+      }else{
+        aatAlgo.yw_dtw(sequenceStr.slice(is,ie), sequenceStr.slice(js,je))(dist)::go(is,ie,js-by,je-by)
+        //min(aatAlgo.yw_dtw(sequenceStr.slice(is,ie), sequenceStr.slice(js,je))(dist),go(is,ie,js-by,je-by))
+      }
+    }
+    go(seqSize-subSeqSize-offSet,seqSize,seqSize-subSeqSize,seqSize)
+  }
+}
+
+class YWDTW_Str extends UDF2[Seq[String],Seq[String], Double] {
+  override def call(db: Seq[String],query: Seq[String]): Double= {
+    val dist:(String,String) => Double =  (x:String,y:String) => if (x==y){0.0} else{1.0}
+    aatAlgo.yw_dtw(db,query)(dist)
+  }
+}
+
+class YWDTW_Double extends UDF2[Seq[Double],Seq[Double], Double] {
+  override def call(db: Seq[Double],query: Seq[Double]): Double= {
+    val dist:(Double,Double) => Double =  (x:Double,y:Double) => abs(x-y)
+    aatAlgo.yw_dtw(db,query)(dist)
+  }
+}
+
 class DTW_Str extends UDF2[Seq[String],Seq[String], Double] {
   override def call(db: Seq[String],query: Seq[String]): Double= {
     val dist:(String,String) => Double =  (x:String,y:String) => if (x==y){0.0} else{1.0}
