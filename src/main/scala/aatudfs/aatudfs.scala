@@ -254,26 +254,45 @@ DTW 계산
  */
 
 class YWDTW_Combination_str extends UDF4[Seq[String],Int, Int, Int, Seq[Double] ] {
-  override def call(sequenceStr: Seq[String],subSeqSize:Int,offSet:Int,by:Int): Seq[Double] = {
+  override def call(sequenceVal: Seq[String],subSeqSize:Int,offSet:Int,by:Int): Seq[Double] = {
     val dist:(String,String) => Double =  (x:String,y:String) => if (x==y){0.0} else{1.0}
-    val seqSize = sequenceStr.size
-    def go(is:Int,ie:Int,js:Int,je:Int):List[Double] = {
+    val seqSize = sequenceVal.size
+    @annotation.tailrec
+    def go(is:Int,ie:Int,js:Int,je:Int,acc:List[Double]):List[Double] = {
       if (is < 0 ){
-        Nil
+        acc
       }else if (js < 0){
-        go(is-by,ie-by,seqSize-subSeqSize-offSet,seqSize)
-      }else if(((js >=is)&&(ie >= js))||((is >= js)&&(je >= is))){
-        go(is,ie,js-by,je-by)
-      }else if (js >= ie){
-        go(is,ie,js-by,je-by)
+        go(is-by,ie-by,is-by-subSeqSize,is-by,acc)
       }else{
-        aatAlgo.yw_dtw(sequenceStr.slice(is,ie), sequenceStr.slice(js,je))(dist)::go(is,ie,js-by,je-by)
-        //min(aatAlgo.yw_dtw(sequenceStr.slice(is,ie), sequenceStr.slice(js,je))(dist),go(is,ie,js-by,je-by))
+        go(is,ie,js-by,je-by,aatAlgo.yw_dtw(sequenceVal.slice(is,ie), sequenceVal.slice(js,je))(dist)::acc)
+        //min(aatAlgo.yw_dtw(sequenceVal.slice(is,ie), sequenceVal.slice(js,je))(dist),go(is,ie,js-by,je-by))
       }
     }
-    go(seqSize-subSeqSize-offSet,seqSize,seqSize-subSeqSize,seqSize)
+    //db_start,db_end, query_start, query_end
+    go(seqSize-subSeqSize-offSet,seqSize,seqSize-(subSeqSize*2)-offSet,seqSize-subSeqSize-offSet,Nil)
   }
 }
+
+class YWDTW_Combination_double extends UDF4[Seq[Double],Int, Int, Int, Seq[Double] ] {
+  override def call(sequenceVal: Seq[Double],subSeqSize:Int,offSet:Int,by:Int): Seq[Double] = {
+    val dist:(Double,Double) => Double =  (x:Double,y:Double) => abs(x-y)
+    val seqSize = sequenceVal.size
+    @annotation.tailrec
+    def go(is:Int,ie:Int,js:Int,je:Int,acc:List[Double]):List[Double] = {
+      if (is < 0 ){
+        acc
+      }else if (js < 0){
+        go(is-by,ie-by,is-by-subSeqSize,is-by,acc)
+      }else{
+        go(is,ie,js-by,je-by,aatAlgo.yw_dtw(sequenceVal.slice(is,ie), sequenceVal.slice(js,je))(dist)::acc)
+        //min(aatAlgo.yw_dtw(sequenceVal.slice(is,ie), sequenceVal.slice(js,je))(dist),go(is,ie,js-by,je-by))
+      }
+    }
+    //db_start,db_end, query_start, query_end
+    go(seqSize-subSeqSize-offSet,seqSize,seqSize-(subSeqSize*2)-offSet,seqSize-subSeqSize-offSet,Nil)
+  }
+}
+
 
 class YWDTW_Str extends UDF2[Seq[String],Seq[String], Double] {
   override def call(db: Seq[String],query: Seq[String]): Double= {
