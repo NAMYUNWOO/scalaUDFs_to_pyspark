@@ -1,8 +1,5 @@
 package aatudfs
-import org.apache.spark.sql.api.java.UDF2
-import org.apache.spark.sql.api.java.UDF3
-import org.apache.spark.sql.api.java.UDF4
-import org.apache.spark.sql.api.java.UDF5
+import org.apache.spark.sql.api.java._
 
 import scala.collection.mutable
 import scala.math.abs
@@ -52,6 +49,77 @@ object aatAlgo{
     }
     cache_i_J(dbSize-1)
   }
+
+
+  def lmv(seq: Seq[Double]): collection.mutable.Map[String,Double] = {
+    val roundAt1:Double=>Double = (x:Double) => (math rint x * 10) / 10
+    val res = collection.mutable.Map[String,Double]()
+    val minLen: Int = 2
+    val maxVar: Double = 1000000.0
+    val seqSize: Int = seq.size
+    var x_sq_sum: Double = 0.0
+    var x_sum: Double = 0.0
+    var subLen: Int = 0
+    var e_i: Double = 0.0
+    var candi: Double = 0.0
+    val minVar: mutable.ArrayBuffer[Double] = mutable.ArrayBuffer.fill(seqSize + 1)(maxVar)
+    val e_arr: mutable.ArrayBuffer[Double] = mutable.ArrayBuffer.fill(seqSize + 1)(maxVar)
+    var subArr:Seq[Double] = Nil
+    for (i <- 0 until (seqSize -(minLen-1)) ) {
+      for (j <- (i+minLen-1) until seqSize) {
+        subLen = (j - i)+1
+        if (subLen == minLen) {
+          subArr = 0.0 +: seq.slice(i, j + 1)
+          x_sq_sum = subArr.reduce((x, y) => x + pow(y, 2))
+          x_sum = subArr.sum
+          e_i = x_sum / subLen
+          candi = roundAt1((x_sq_sum / subLen) - pow(e_i, 2))
+          if (candi < minVar(subLen)) {
+            minVar(subLen) = candi
+            e_arr(subLen) = e_i
+          }
+        } else {
+          x_sq_sum = x_sq_sum + pow(seq(j), 2)
+          x_sum = x_sum + seq(j)
+          e_i = x_sum / subLen
+          candi = roundAt1((x_sq_sum / subLen) - pow(e_i, 2))
+          if (candi < minVar(subLen)) {
+            minVar(subLen) = candi
+            e_arr(subLen) = e_i
+          }
+        }
+      }
+    }
+    var minVar_val: Double = maxVar
+    if (seqSize >= 5) {
+      val minVar_under5 = minVar.slice(0, 5).min
+      val minVar_over5 = minVar.slice(5, minVar.size).min
+      if (minVar_over5 <= 0.5) {
+        minVar_val = minVar_over5
+      } else {
+        minVar_val = min(minVar_under5, minVar_over5)
+      }
+    } else {
+      minVar_val = minVar.min
+    }
+    def getConsecution(minVar2: mutable.ArrayBuffer[Double], minVar_val2: Double): Int = {
+      for (i <- minVar2.size - 1 to 0 by -1) {
+        if (abs(minVar2(i) - minVar_val2) < 0.01) {
+          return i
+        }
+      }
+      0
+    }
+    val consecution:Int = getConsecution(minVar,minVar_val)
+    val timeInterval:Double = e_arr(consecution)
+    val duration:Double = timeInterval*consecution
+    res += "var" -> minVar_val
+    res += "consecution" -> consecution.asInstanceOf[Double]
+    res += "timeInterval" -> roundAt1(timeInterval)
+    res += "duration" -> roundAt1(duration)
+    res
+  }
+
 
   def checkSeqSlice(seqSize:Int,from:Int,to:Int):Boolean = {
     if (from < 0)
@@ -347,6 +415,12 @@ class DTWInRange_Double  extends UDF4[Seq[Double],Seq[Double],Int,Int, Double] {
   override def call(db: Seq[Double], query: Seq[Double], from: Int, to: Int): Double = {
     val dist:(Double,Double) => Double =  (x:Double,y:Double) => abs(x-y)
     aatAlgo.dtw(db.slice(from,to),query.slice(from,to))(dist)
+  }
+}
+
+class LMV extends UDF1[Seq[Double], collection.mutable.Map[String,Double]] {
+  override def call(seq: Seq[Double]): collection.mutable.Map[String,Double] = {
+    aatAlgo.lmv(seq)
   }
 }
 
