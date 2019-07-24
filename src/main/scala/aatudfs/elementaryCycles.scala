@@ -7,15 +7,20 @@ import scala.collection.mutable
 
 
 object SCC {
-
-  def createGraph(edgeList:Seq[String]):Map[String,Set[String]] = {
+  def createGraphFromEdgeStringList(edgeList:Seq[String],delemeter:String):Map[String,Set[String]] = {
     var graph = Map[String, Set[String] ]()
     for ( i <- edgeList.indices){
-      val fromto:Seq[String] =  edgeList(i).split("->")
+      val fromto:Seq[String] =  edgeList(i).split(delemeter)
       if (graph.get(fromto(0)) == None){
-        graph = graph.updated(fromto(0),Set(fromto(1)))
+        if (fromto(0) != fromto(1)){
+          graph = graph.updated(fromto(0),Set(fromto(1)))
+        }else{
+          graph = graph.updated(fromto(0),Set())
+        }
       }else{
-        graph = graph.updated(fromto(0),graph.getOrElse(fromto(0),Set() ) + fromto(1))
+        if (fromto(0) != fromto(1)){
+          graph = graph.updated(fromto(0),graph.getOrElse(fromto(0),Set() ) + fromto(1))
+        }
       }
       if (graph.get(fromto(1)) == None){
         graph = graph.updated(fromto(1),Set())
@@ -24,12 +29,44 @@ object SCC {
     graph
   }
 
-  def getAdjacencyList[T](s:T,sccs:List[Set[T]]):Boolean = {
-    for (seti <- sccs.iterator){
-      if (seti(s))
-        return true
+  def createGraphFromEdgePairList[T](edgeList:Seq[Seq[T]]):Map[T,Set[T]] = {
+    var graph = Map[T, Set[T] ]()
+    edgeList.foreach(fromto => {
+      if (graph.get(fromto(0)) == None){
+        if (fromto(0) != fromto(1)){
+          graph = graph.updated(fromto(0),Set(fromto(1)))
+        }else{
+          graph = graph.updated(fromto(0),Set())
+        }
+      }else{
+        if (fromto(0) != fromto(1)){
+          graph = graph.updated(fromto(0),graph.getOrElse(fromto(0),Set() ) + fromto(1))
+        }
+      }
+      if (graph.get(fromto(1)) == None){
+        graph = graph.updated(fromto(1),Set())
+      }
+    })
+    graph
+  }
+
+  def stringEdgeToPairEdgeWithDeleterAttr(edgeList:Seq[String],delemeter:String):Seq[Seq[String]] = {
+    def go(rest:Seq[String],acc:List[List[String]]):List[List[String]] = rest match {
+      case Seq(head, tail @ _*)=> go(tail,head.split(delemeter).toList::acc)
+      case Seq() => acc
+      case _ => acc
     }
-    false
+    go(edgeList,Nil)
+  }
+
+  def stringEdgeToPairEdgeWithArrowDelemeter(edgeList:Seq[String]):Seq[Seq[String]] = {
+    val arrowDelemeter:String = "->"
+    def go(rest:Seq[String],acc:List[List[String]]):List[List[String]] = rest match {
+      case Seq(head, tail @ _*)=> go(tail,head.split(arrowDelemeter).toList::acc)
+      case Seq() => acc
+      case _ => acc
+    }
+    go(edgeList,Nil)
   }
 
   def elementaryCyclesSearch[T](adjList:Map[T,Set[T]]):Seq[Seq[T]] = {
@@ -37,23 +74,23 @@ object SCC {
     val graphNode:List[T] = adjList.keySet.toList
     var cycles: Seq[Seq[T]] = List()
     var blocked:Map[T,Boolean] = Map()
-    var B : Map[T,Vector[T]] = Map()
+    var B : Map[T,List[T]] = Map()
     var closed : Map[T,Boolean] = Map()
     var path: List[T] = List()
-    var stack =  List[Map[T,Set[T]]]()
+    var stack =  List[Map[T,List[T]]]()
 
 
     def unblock(thisnode:T):Unit = {
       var stackSet = List(thisnode)
       while (stackSet.nonEmpty){
-        var node = stackSet.last
-        stackSet = stackSet.dropRight(1)
+        var node = stackSet.head
+        stackSet = stackSet.tail
         if (blocked.getOrElse(node,false)){
           blocked = blocked.updated(node,false)
           B.getOrElse(node,Vector()).foreach(x => {
-            stackSet = stackSet :+ x
+            stackSet = x::stackSet
           })
-          B = B.updated(node,Vector())
+          B = B.updated(node,List())
         }
       }
     }
@@ -62,37 +99,37 @@ object SCC {
 
       var sccs:List[Set[T]] = sccfunc(G)
       while (sccs.nonEmpty){
-        var scc:Set[T] = sccs.last
-        sccs = sccs.dropRight(1)
-        var startnode = scc.last
-        scc = scc.dropRight(1)
+        var scc:Set[T] = sccs.head
+        sccs = sccs.tail
+        var startnode = scc.head
+        scc = scc.tail
         path = List(startnode)
         // init blocked and B
         graphNode.iterator.foreach(x=> {
           blocked = blocked.updated(x,x == startnode)
-          B = B.updated(x,Vector())
+          B = B.updated(x,List())
         })
-        stack = stack :+ Map[T,Set[T]](startnode  -> G.getOrElse(startnode,Set[T]()))
+        stack = Map[T,List[T]](startnode  -> G.getOrElse(startnode,List[T]()).toList)::stack
         while (stack.nonEmpty){
-          var thisnodeNbrs:Map[T,Set[T]] = stack.last
+          var thisnodeNbrs:Map[T,List[T]] = stack.head
 
           var thisnode:T =thisnodeNbrs.keySet.toList.head
-          var nbrs = thisnodeNbrs.getOrElse(thisnode,Set[T]()).toList
+          var nbrs = thisnodeNbrs.getOrElse(thisnode,List[T]())
           var continueFlag : Boolean = false
           if (nbrs.nonEmpty){
-            stack = stack.dropRight(1)
-            var nextnode = nbrs.last
-            nbrs = nbrs.dropRight(1)
-            stack = stack :+ Map[T,Set[T]](thisnode  -> nbrs.toSet)
+            stack = stack.tail
+            var nextnode = nbrs.head
+            nbrs = nbrs.tail
+            stack = Map[T,List[T]](thisnode  -> nbrs)::stack
             if (nextnode == startnode){
-              cycles = cycles :+ path
+              cycles = path+:cycles
               path.foreach(x => {
                 closed = closed.updated(x,true)
               })
             }else if (! blocked.getOrElse(nextnode,true)){
-              path = path :+ nextnode
-              stack = stack :+ Map[T,Set[T]](nextnode  -> G.getOrElse(nextnode,Set[T]()))
-              closed = closed - nextnode//closed.updated(nextnode,false)
+              path = nextnode::path
+              stack = Map[T,List[T]](nextnode  -> G.getOrElse(nextnode,List[T]()).toList)::stack
+              closed = closed.updated(nextnode,false)
               blocked = blocked.updated(nextnode,true)
               continueFlag = true
             }
@@ -104,14 +141,14 @@ object SCC {
                 unblock(thisnode)
               } else {
                 G.getOrElse(thisnode, Set()).iterator.foreach(nbr => {
-                  var Bnbr = B.getOrElse(nbr, Vector())
+                  var Bnbr = B.getOrElse(nbr, List())
                   if (!Bnbr.contains(thisnode)) {
-                    B = B.updated(nbr, Bnbr :+ thisnode)
+                    B = B.updated(nbr, thisnode::Bnbr)
                   }
                 })
               }
-              stack = stack.dropRight(1)
-              path = path.dropRight(1)
+              stack = stack.tail
+              path = path.tail
             }
           }
         }
@@ -122,7 +159,7 @@ object SCC {
 
       cycles
     }
-    return getAns(())
+    getAns(())
 
   }
 
@@ -188,7 +225,6 @@ object SCC {
 
     components.reverse
   }
-
 
 }
 /*
