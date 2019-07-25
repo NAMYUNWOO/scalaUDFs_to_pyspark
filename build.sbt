@@ -4,5 +4,5 @@ scalaVersion := "2.11.0"
 libraryDependencies  ++= Seq(
   "org.apache.spark" %% "spark-sql" % "2.4.3" % "provided"
 )
-assemblyJarName in assembly := "aatudfs-1.2.0-spark-sql-2.4.3.jar"
+assemblyJarName in assembly := "aatudfs-1.3.0-spark-sql-2.4.3.jar"
 test in assembly := {}
