@@ -272,7 +272,7 @@ object aatGraphModules {
     graph
   }
 
-  def stringEdgeToPairEdgeWithDeleterAttr(edgeList:Seq[String],delemeter:String):Seq[Seq[String]] = {
+  def stringEdgeToPairEdgeWithDelemeterAttr(edgeList:Seq[String],delemeter:String):Seq[Seq[String]] = {
     def go(rest:Seq[String],acc:List[List[String]]):List[List[String]] = rest match {
       case Seq(head, tail @ _*)=> go(tail,head.split(delemeter).toList::acc)
       case Seq() => acc
@@ -655,7 +655,7 @@ class elementaryCycleSearchWithArrowEdgeStringList extends UDF1[Seq[String], Seq
   override def call(edgeList: Seq[String]): Seq[Seq[String]] = {
     aatGraphModules.elementaryCyclesSearch(
       aatGraphModules.createGraphFromEdgePairList(
-        aatGraphModules.stringEdgeToPairEdgeWithDeleterAttr(edgeList,"->")
+        aatGraphModules.stringEdgeToPairEdgeWithDelemeterAttr(edgeList,"->")
       )
     )
   }
