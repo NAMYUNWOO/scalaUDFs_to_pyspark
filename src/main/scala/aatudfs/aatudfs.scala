@@ -49,8 +49,6 @@ object aatAlgo{
     }
     cache_i_J(dbSize-1)
   }
-
-
   def lmv(seq: Seq[Double]): collection.mutable.Map[String,Double] = {
     val roundAt1:Double=>Double = (x:Double) => (math rint x * 10) / 10
     val res = collection.mutable.Map[String,Double]()
@@ -77,6 +75,8 @@ object aatAlgo{
           if (candi < minVar(subLen)) {
             minVar(subLen) = candi
             e_arr(subLen) = e_i
+          } else if ((candi == minVar(subLen)) && (e_i > e_arr(subLen))){
+            e_arr(subLen) = e_i
           }
         } else {
           x_sq_sum = x_sq_sum + pow(seq(j), 2)
@@ -85,6 +85,8 @@ object aatAlgo{
           candi = roundAt1((x_sq_sum / subLen) - pow(e_i, 2))
           if (candi < minVar(subLen)) {
             minVar(subLen) = candi
+            e_arr(subLen) = e_i
+          } else if ((candi == minVar(subLen)) && (e_i > e_arr(subLen))){
             e_arr(subLen) = e_i
           }
         }
@@ -639,12 +641,12 @@ class DTWInRange_Double  extends UDF4[Seq[Double],Seq[Double],Int,Int, Double] {
     aatAlgo.dtw(db.slice(from,to),query.slice(from,to))(dist)
   }
 }
-
 class LMV extends UDF1[Seq[Double], collection.mutable.Map[String,Double]] {
   override def call(seq: Seq[Double]): collection.mutable.Map[String,Double] = {
     aatAlgo.lmv(seq)
   }
 }
+
 
 /*
 Graph 구조 관련 계산
