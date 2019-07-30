@@ -122,7 +122,7 @@ jar파일이 만들어졌습니다. aatudfs.jar<br>
 (databricks 기준)<br>
 ![explain](./imgs/installLibrary.png)<br><br>
 저기다가 drop 해서 클러스터에 설치합니다.<br>
-![explain](./imgs/droptothere.png)
+![explain](./imgs/droptoThere.png)
 <br><br>
 ## 4. pyspark에서 sql함수로 등록을하고 사용합니다.
 ~~~python
