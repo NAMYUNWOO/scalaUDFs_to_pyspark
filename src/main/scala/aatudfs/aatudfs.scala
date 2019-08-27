@@ -293,7 +293,7 @@ object aatGraphModules {
     go(edgeList,Nil)
   }
 
-  def elementaryCyclesSearch[T](adjList:Map[T,Set[T]]):Seq[Seq[T]] = {
+  def elementaryCyclesSearch[T](adjList:Map[T,Set[T]],maxCycleNum:Int):Seq[Seq[T]] = {
     var G = adjList
     val graphNode:List[T] = adjList.keySet.toList
     var cycles: Seq[Seq[T]] = List()
@@ -322,7 +322,7 @@ object aatGraphModules {
     def getAns(unit: Unit):Seq[Seq[T]] = {
 
       var sccs:List[Set[T]] = sccfunc(G)
-      while (sccs.nonEmpty){
+      while (sccs.nonEmpty && cycles.size <= maxCycleNum){
         var scc:Set[T] = sccs.head
         sccs = sccs.tail
         var startnode = scc.head
@@ -334,7 +334,7 @@ object aatGraphModules {
           B = B.updated(x,List())
         })
         stack = Map[T,List[T]](startnode  -> G.getOrElse(startnode,List[T]()).toList)::stack
-        while (stack.nonEmpty){
+        while (stack.nonEmpty && cycles.size <= maxCycleNum){
           var thisnodeNbrs:Map[T,List[T]] = stack.head
 
           var thisnode:T =thisnodeNbrs.keySet.toList.head
@@ -653,12 +653,13 @@ Graph 구조 관련 계산
 시퀀스 graph 에서 feature 를 찾는데 사용함
  */
 
-class elementaryCycleSearchWithArrowEdgeStringList extends UDF1[Seq[String], Seq[Seq[String]]] {
-  override def call(edgeList: Seq[String]): Seq[Seq[String]] = {
+class elementaryCycleSearchWithArrowEdgeStringList extends UDF2[Seq[String],Int,Seq[Seq[String]]] {
+  override def call(edgeList: Seq[String],maxCycleNum:Int): Seq[Seq[String]] = {
     aatGraphModules.elementaryCyclesSearch(
       aatGraphModules.createGraphFromEdgePairList(
         aatGraphModules.stringEdgeToPairEdgeWithDelemeterAttr(edgeList,"->")
-      )
+      ),
+      maxCycleNum
     )
   }
 }
