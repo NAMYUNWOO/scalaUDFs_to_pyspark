@@ -49,6 +49,54 @@ object aatAlgo{
     }
     cache_i_J(dbSize-1)
   }
+
+  def lcstring[A](db: Seq[A],query: Seq[A])(dist:(A,A) => Int): List[Int] = {
+    val dbSize : Int = db.size
+    val querySize : Int = query.size
+    //val dist:(A,A) => Int =  (x:A,y:A) => if (x == y) 1 else 0
+    val cache_i_J:mutable.ArrayBuffer[Int] = mutable.ArrayBuffer(dist(db.head,query.head ))
+    var cache_i_j1:Int = 1073741824
+    var cache_i_j1_temp:Int = 1073741824
+    var curdist:Int = 0
+    var res:Int = 0
+    var ith:Int = 0
+    var jth:Int = 0
+    for (j <- 1 until dbSize){
+      curdist = dist(query.head,db(j))
+      cache_i_J += curdist
+      if (curdist > res){
+        res = curdist;jth=j
+      }
+    }
+    for (i <- 1 until querySize){
+      for (j <- 0 until dbSize) {
+        curdist = dist(query(i),db(j))
+        if (j == 0){
+          if (curdist == 1){
+            cache_i_j1 = curdist
+          }else{
+            cache_i_j1 = cache_i_J(j)
+          }
+          if (curdist > res){
+            res = curdist;jth=j;ith = i;
+          }
+        }else if (curdist == 1){
+          cache_i_j1_temp = cache_i_J(j-1) + curdist
+          cache_i_J(j-1) = cache_i_j1
+          cache_i_j1 = cache_i_j1_temp
+          if (cache_i_j1_temp > res){
+            res = cache_i_j1_temp;jth=j;ith = i;
+          }
+        }else{
+          cache_i_J(j-1) = cache_i_j1
+          cache_i_j1 = 0
+        }
+      }
+      cache_i_J(dbSize-1) = cache_i_j1
+    }
+    List(res,ith,jth)
+  }
+
   def lmv(seq: Seq[Double]): collection.mutable.Map[String,Double] = {
     val roundAt1:Double=>Double = (x:Double) => (math rint x * 10) / 10
     val res = collection.mutable.Map[String,Double]()
@@ -519,6 +567,22 @@ class LCSInRange_Double extends UDF5[Seq[Int],Seq[Int],Int,Int,Int, Int] {
                )
   }
 }
+
+//Longest Common String
+class LCString_Str extends UDF2[Seq[String],Seq[String], Map[String,Int]] {
+  override def call(seq1: Seq[String],seq2: Seq[String]): Map[String,Int] = {
+    val isEqual: (String, String) => Int = (x: String, y: String) => if (x == y) {1} else {0}
+    var resList: List[Int] = List[Int]()
+    if (seq1.size >= seq2.size) {
+      resList = aatAlgo.lcstring(seq1, seq2)(isEqual)
+      Map("lcstring"->resList(0),"seq1Idx"-> resList(2),"seq2Idx"-> resList(1))
+    } else {
+      resList = aatAlgo.lcstring(seq2, seq1)(isEqual)
+      Map("lcstring"->resList(0),"seq1Idx"-> resList(1),"seq2Idx"-> resList(2))
+    }
+  }
+}
+
 // actionLCS 모델을 위한 것
 class LCS_AAT extends UDF2[Seq[String],Seq[String], Seq[Int]] {
   override def call(db: Seq[String],query: Seq[String]): Seq[Int] = {
@@ -596,6 +660,15 @@ class YWDTW_Str extends UDF2[Seq[String],Seq[String], Double] {
 class YWDTW_Double extends UDF2[Seq[Double],Seq[Double], Double] {
   override def call(db: Seq[Double],query: Seq[Double]): Double= {
     val dist:(Double,Double) => Double =  (x:Double,y:Double) => abs(x-y)
+    aatAlgo.yw_dtw(db,query)(dist)
+  }
+}
+
+class YWDTW_Double2dim extends UDF2[Seq[Seq[Double]],Seq[Seq[Double]], Double] {
+  override def call(db: Seq[Seq[Double]],query: Seq[Seq[Double]]): Double= {
+    val dist:(Seq[Double],Seq[Double]) => Double = {
+      (x: Seq[Double], y: Seq[Double]) => math.sqrt(pow(x(0) - y(0), 2) + pow(x(1) - y(1), 2))
+    }
     aatAlgo.yw_dtw(db,query)(dist)
   }
 }
