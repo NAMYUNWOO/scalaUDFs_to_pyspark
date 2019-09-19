@@ -50,38 +50,39 @@ object aatAlgo{
     cache_i_J(dbSize-1)
   }
 
-  def lcstring[A](db: Seq[A],query: Seq[A])(dist:(A,A) => Int): List[Int] = {
+  def lcstring[A](db: Seq[A],query: Seq[A])(isEq:(A,A) => Boolean,increment:(A,A) => Double): List[Int] = {
     val dbSize : Int = db.size
     val querySize : Int = query.size
     //val dist:(A,A) => Int =  (x:A,y:A) => if (x == y) 1 else 0
-    val cache_i_J:mutable.ArrayBuffer[Int] = mutable.ArrayBuffer(dist(db.head,query.head ))
-    var cache_i_j1:Int = 1073741824
-    var cache_i_j1_temp:Int = 1073741824
-    var curdist:Int = 0
-    var res:Int = 0
+    val cache_i_J:mutable.ArrayBuffer[Double] = mutable.ArrayBuffer({ if (isEq(db.head,query.head )){1.0}else{0.0}})
+    var cache_i_j1:Double = 1073741824.0
+    var cache_i_j1_temp:Double = 1073741824.0
+    var curEq:Boolean= false
+    var res:Double = 0
     var ith:Int = 0
     var jth:Int = 0
     for (j <- 1 until dbSize){
-      curdist = dist(query.head,db(j))
-      cache_i_J += curdist
-      if (curdist > res){
-        res = curdist;jth=j
+      if (isEq(query.head,db(j))){
+        cache_i_J += 1.0
+        res = 1.0;jth=j
+      }else{
+        cache_i_J += 0.0
       }
     }
     for (i <- 1 until querySize){
       for (j <- 0 until dbSize) {
-        curdist = dist(query(i),db(j))
+        curEq = isEq(query(i),db(j))
         if (j == 0){
-          if (curdist == 1){
-            cache_i_j1 = curdist
+          if (curEq){
+            cache_i_j1 = 1.0
+            if (1.0 > res){
+              res = 1.0;jth=j;ith = i;
+            }
           }else{
-            cache_i_j1 = cache_i_J(j)
+            cache_i_j1 = 0.0
           }
-          if (curdist > res){
-            res = curdist;jth=j;ith = i;
-          }
-        }else if (curdist == 1){
-          cache_i_j1_temp = cache_i_J(j-1) + curdist
+        }else if (curEq){
+          cache_i_j1_temp = cache_i_J(j-1) + { if (cache_i_J(j-1) < 1.0){1.0}else{increment(db(j-1),db(j) )}}
           cache_i_J(j-1) = cache_i_j1
           cache_i_j1 = cache_i_j1_temp
           if (cache_i_j1_temp > res){
@@ -89,12 +90,12 @@ object aatAlgo{
           }
         }else{
           cache_i_J(j-1) = cache_i_j1
-          cache_i_j1 = 0
+          cache_i_j1 = 0.0
         }
       }
       cache_i_J(dbSize-1) = cache_i_j1
     }
-    List(res,ith,jth)
+    List(round(res).asInstanceOf[Int],ith,jth)
   }
 
   def lmv(seq: Seq[Double]): collection.mutable.Map[String,Double] = {
@@ -571,13 +572,29 @@ class LCSInRange_Double extends UDF5[Seq[Int],Seq[Int],Int,Int,Int, Int] {
 //Longest Common String
 class LCString_Str extends UDF2[Seq[String],Seq[String], Map[String,Int]] {
   override def call(seq1: Seq[String],seq2: Seq[String]): Map[String,Int] = {
-    val isEqual: (String, String) => Int = (x: String, y: String) => if (x == y) {1} else {0}
+    val isEqual: (String, String) => Boolean = (x: String, y: String) => if (x == y) {true} else {false}
+    val inc: (String, String) => Double = (x: String, y: String) => {1.0}
     var resList: List[Int] = List[Int]()
     if (seq1.size >= seq2.size) {
-      resList = aatAlgo.lcstring(seq1, seq2)(isEqual)
+      resList = aatAlgo.lcstring(seq1, seq2)(isEqual,inc)
       Map("lcstring"->resList(0),"seq1Idx"-> resList(2),"seq2Idx"-> resList(1))
     } else {
-      resList = aatAlgo.lcstring(seq2, seq1)(isEqual)
+      resList = aatAlgo.lcstring(seq2, seq1)(isEqual,inc)
+      Map("lcstring"->resList(0),"seq1Idx"-> resList(1),"seq2Idx"-> resList(2))
+    }
+  }
+}
+
+class LCString_Double extends UDF3[Seq[Double],Seq[Double],Double, Map[String,Int]] {
+  override def call(seq1: Seq[Double],seq2: Seq[Double],diffThreshold:Double): Map[String,Int] = {
+    val isEqual: (Double, Double) => Boolean = (x: Double, y: Double) => abs(x  - y) < diffThreshold
+    val inc: (Double, Double) => Double = (x: Double, y: Double) => y-x
+    var resList: List[Int] = List[Int]()
+    if (seq1.size >= seq2.size) {
+      resList = aatAlgo.lcstring(seq1, seq2)(isEqual,inc)
+      Map("lcstring"->resList(0),"seq1Idx"-> resList(2),"seq2Idx"-> resList(1))
+    } else {
+      resList = aatAlgo.lcstring(seq2, seq1)(isEqual,inc)
       Map("lcstring"->resList(0),"seq1Idx"-> resList(1),"seq2Idx"-> resList(2))
     }
   }
