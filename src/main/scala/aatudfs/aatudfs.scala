@@ -9,10 +9,9 @@ import scala.math.min
 import scala.math.max
 
 object aatAlgo{
-  def lcs[A](db: Seq[A],query: Seq[A]): Int = {
+  def lcs[A](db: Seq[A],query: Seq[A])(dist:(A,A) => Int): Int = {
     val dbSize : Int = db.size
     val querySize : Int = query.size
-    val dist:(A,A) => Int =  (x:A,y:A) => if (x == y) 1 else 0
     val cache_i_J:mutable.ArrayBuffer[Int] = mutable.ArrayBuffer(dist(db.head,query.head ))
     var cache_i_j1:Int = 1073741824
     var cache_i_j1_temp:Int = 1073741824
@@ -531,41 +530,43 @@ LCS 계산
  */
 class LCS_Str extends UDF2[Seq[String],Seq[String], Int] {
   override def call(db: Seq[String],query: Seq[String]): Int = {
-    aatAlgo.lcs(db,query) 
+    val dist:(String,String) => Int =  (x:String,y:String) => if (x == y) 1 else 0
+    aatAlgo.lcs(db,query)(dist)
   }
 }
 
 class LCS_Int extends UDF2[Seq[Int],Seq[Int], Int] {
   override def call(db: Seq[Int],query: Seq[Int]): Int = {
-    aatAlgo.lcs(db,query) 
+    val dist:(Int,Int) => Int =  (x:Int,y:Int) => if (x == y) 1 else 0
+    aatAlgo.lcs(db,query)(dist)
   }
 }
 
-class LCS_Double extends UDF3[Seq[Double],Seq[Double], Int,Int] {
-  override def call(db: Seq[Double],query: Seq[Double],ndigits:Int): Int = {
-    aatAlgo.lcs(db.map(x=> round(x*pow(10.0,ndigits)).asInstanceOf[Int] ),
-                query.map(x=> round(x*pow(10.0,ndigits)).asInstanceOf[Int] )
-               )
+class LCS_Double extends UDF3[Seq[Double],Seq[Double], Double,Int] {
+  override def call(db: Seq[Double],query: Seq[Double],diffThreshold:Double): Int = {
+    val dist: (Double, Double) => Int = (x: Double, y: Double) => if (abs(x  - y) < diffThreshold){1}else{0}
+    aatAlgo.lcs(db,query)(dist)
   }
 }
 
 class LCSInRange_Str extends UDF4[Seq[String],Seq[String],Int,Int, Int] {
   override def call(db: Seq[String], query: Seq[String], from: Int, to: Int): Int = {
-    aatAlgo.lcs(db.slice(from,to),query.slice(from,to))
+    val dist:(String,String) => Int =  (x:String,y:String) => if (x == y) 1 else 0
+    aatAlgo.lcs(db.slice(from,to),query.slice(from,to))(dist)
   }
 }
 
 class LCSInRange_Int extends UDF4[Seq[Int],Seq[Int],Int,Int, Int] {
   override def call(db: Seq[Int], query: Seq[Int], from: Int, to: Int): Int = {
-    aatAlgo.lcs(db.slice(from,to),query.slice(from,to))
+    val dist:(Int,Int) => Int =  (x:Int,y:Int) => if (x == y) 1 else 0
+    aatAlgo.lcs(db.slice(from,to),query.slice(from,to))(dist)
   }
 }
 
-class LCSInRange_Double extends UDF5[Seq[Int],Seq[Int],Int,Int,Int, Int] {
-  override def call(db: Seq[Int], query: Seq[Int], ndigits:Int,from: Int, to: Int): Int = {
-    aatAlgo.lcs(db.slice(from,to).map(x=> round(x*pow(10.0,ndigits)).asInstanceOf[Int] ),
-                query.slice(from,to).map(x=> round(x*pow(10.0,ndigits)).asInstanceOf[Int] )
-               )
+class LCSInRange_Double extends UDF5[Seq[Double],Seq[Double],Double,Int,Int, Int] {
+  override def call(db: Seq[Double], query: Seq[Double], diffThreshold:Double,from: Int, to: Int): Int = {
+    val dist: (Double, Double) => Int = (x: Double, y: Double) => if (abs(x  - y) < diffThreshold){1}else{0}
+    aatAlgo.lcs(db.slice(from,to),query.slice(from,to))(dist)
   }
 }
 
@@ -604,16 +605,16 @@ class LCString_Double extends UDF3[Seq[Double],Seq[Double],Double, Map[String,In
 class LCS_AAT extends UDF2[Seq[String],Seq[String], Seq[Int]] {
   override def call(db: Seq[String],query: Seq[String]): Seq[Int] = {
     val minsize = min(db.size,query.size)
-
+    val dist:(String,String) => Int =  (x:String,y:String) => if (x == y) 1 else 0
     def go(n:Int):List[Int] = {
       if (minsize < (n+1)*1000 ){
         go(n-1)
       } else if (n<0){
         Nil
       } else if (n == 0){
-        List(aatAlgo.lcs(db.slice(n*1000,(n+1)*1000),query.slice(n*1000,(n+1)*1000)))
+        List(aatAlgo.lcs(db.slice(n*1000,(n+1)*1000),query.slice(n*1000,(n+1)*1000))(dist))
       }else{
-        aatAlgo.lcs(db.slice(n*1000,(n+1)*1000),query.slice(n*1000,(n+1)*1000))::go(n-1)
+        aatAlgo.lcs(db.slice(n*1000,(n+1)*1000),query.slice(n*1000,(n+1)*1000))(dist)::go(n-1)
       }
     }
     go(4).reverse
