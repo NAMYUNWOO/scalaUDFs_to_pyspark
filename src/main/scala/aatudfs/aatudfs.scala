@@ -612,10 +612,11 @@ class LCSInRange_Double extends UDF5[Seq[Double],Seq[Double],Double,Int,Int, Int
   }
 }
 
-class LCS_DtNxlog extends UDF2[Seq[Row],Seq[Row], Tuple2[Int,Seq[Seq[Int]]] ]{
-  override def call(seqLeft: Seq[Row],seqRight: Seq[Row]): Tuple2[Int,Seq[Seq[Int]]] = {
-    val isEq: (Row,Row) => Boolean = (a:Row,b:Row) => (a,b) match { case (Row(dt1:Double,nxlog1:String),Row(dt2:Double,nxlog2:String)) => (abs(dt1 - dt2) < 5.0) && (nxlog1 == nxlog2)}
-    def sortByDt(r1:Row,r2:Row) = (r1,r2) match {
+class LCS_DtNxlog extends UDF3[Seq[Row],Seq[Row],Int, Tuple2[Int,Seq[Seq[Int]]] ]{
+  override def call(seqLeft: Seq[Row],seqRight: Seq[Row],threshold:Int): Tuple2[Int,Seq[Seq[Int]]] = {
+    var thres = threshold.asInstanceOf[Double]
+    val isEq: (Row,Row) => Boolean = (a:Row,b:Row) => (a,b) match { case (Row(dt1:Double,nxlog1:String),Row(dt2:Double,nxlog2:String)) => (abs(dt1 - dt2) < thres ) && (nxlog1 == nxlog2)}
+    def sortByDt(r1:Row,r2:Row):Boolean = (r1,r2) match {
       case (Row(dt1:Double,_:String),Row(dt2:Double,_:String)) => dt1 < dt2
     }
     val resdata = aatAlgo.lcsBinary(seqLeft.sortWith(sortByDt),seqRight.sortWith(sortByDt),isEq)
