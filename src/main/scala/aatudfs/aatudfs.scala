@@ -1,12 +1,12 @@
 package aatudfs
 import org.apache.spark.sql.api.java._
-
 import scala.collection.mutable
 import scala.math.abs
 import scala.math.round
 import scala.math.pow
 import scala.math.min
 import scala.math.max
+import org.apache.spark.sql.Row
 
 object aatAlgo{
   def lcs[A](db: Seq[A],query: Seq[A])(dist:(A,A) => Int): Int = {
@@ -47,6 +47,45 @@ object aatAlgo{
       cache_i_J(dbSize-1) = cache_i_j1
     }
     cache_i_J(dbSize-1)
+  }
+
+  class LcsCache {
+    var lcs:Int = 0
+    var idxs: mutable.ArrayBuffer[List[Int]] = new mutable.ArrayBuffer[List[Int]]() //should be develoed linkedList
+  }
+
+  case class LcsCacheCase(lcs:Int,idxs: mutable.ArrayBuffer[List[Int]])
+  def lcsBinary[A](X:Seq[A],Y:Seq[A],isEq:(A,A) => Boolean):LcsCacheCase = {
+    val m:Int = X.size
+    val n:Int = Y.size
+    var L:mutable.ArrayBuffer[mutable.ArrayBuffer[LcsCache]] = mutable.ArrayBuffer(mutable.ArrayBuffer(),mutable.ArrayBuffer())
+    for ( i <- 0 until 2; j <- 0 until n + 1 ) {
+      L(i) += new LcsCache()
+    }
+
+    var bi:Int = 0
+    for ( i <- 0 until m + 1; j <- 0 until n + 1 ) {
+      bi = i&1
+      //println(L(bi)(j).idxs.hashCode())
+      if (i==0 || j == 0){
+        L(bi)(j).lcs = 0
+      }else if (isEq(X(i-1),Y(j-1))) {
+        L(bi)(j).lcs = L(1-bi)(j-1).lcs + 1
+        L(bi)(j).idxs = L(1-bi)(j-1).idxs.clone
+        L(bi)(j).idxs += List(i-1,j-1)
+      }else {
+        if (L(1-bi)(j).lcs > L(bi)(j-1).lcs){
+          L(bi)(j).lcs = L(1-bi)(j).lcs
+          L(bi)(j).idxs = L(1-bi)(j).idxs
+        }else{
+          L(bi)(j).lcs = L(bi)(j-1).lcs
+          L(bi)(j).idxs = L(bi)(j-1).idxs
+        }
+      }
+    }
+    val resdata = LcsCacheCase(L(bi)(n).lcs,L(bi)(n).idxs.clone)
+    L = null //free mem
+    resdata
   }
 
   def lcstring[A](db: Seq[A],query: Seq[A])(isEq:(A,A) => Boolean,increment:(A,A) => Double): List[Int] = {
@@ -97,7 +136,7 @@ object aatAlgo{
     List(round(res).asInstanceOf[Int],ith,jth)
   }
 
-  def lmv(seq: Seq[Double]): collection.mutable.Map[String,Double] = {
+  def lmv(seq: Seq[Double], varLowerBound : Double = 0.1): collection.mutable.Map[String,Double] = {
     val roundAt1:Double=>Double = (x:Double) => (math rint x * 10) / 10
     val res = collection.mutable.Map[String,Double]()
     val minLen: Int = 2
@@ -154,6 +193,9 @@ object aatAlgo{
     }
     def getConsecution(minVar2: mutable.ArrayBuffer[Double], minVar_val2: Double): Int = {
       for (i <- minVar2.size - 1 to 0 by -1) {
+        if (minVar2(i) < varLowerBound ){
+          return i
+        }
         if (abs(minVar2(i) - minVar_val2) < 0.01) {
           return i
         }
@@ -168,7 +210,7 @@ object aatAlgo{
     res += "timeInterval" -> roundAt1(timeInterval)
     res += "duration" -> roundAt1(duration)
     res
-  }
+  } //lmv
 
 
   def checkSeqSlice(seqSize:Int,from:Int,to:Int):Boolean = {
@@ -570,6 +612,17 @@ class LCSInRange_Double extends UDF5[Seq[Double],Seq[Double],Double,Int,Int, Int
   }
 }
 
+class LCS_DtNxlog extends UDF2[Seq[Row],Seq[Row], Tuple2[Int,Seq[Seq[Int]]] ]{
+  override def call(seqLeft: Seq[Row],seqRight: Seq[Row]): Tuple2[Int,Seq[Seq[Int]]] = {
+    val isEq: (Row,Row) => Boolean = (a:Row,b:Row) => (a,b) match { case (Row(dt1:Double,nxlog1:String),Row(dt2:Double,nxlog2:String)) => (abs(dt1 - dt2) < 5.0) && (nxlog1 == nxlog2)}
+    def sortByDt(r1:Row,r2:Row) = (r1,r2) match {
+      case (Row(dt1:Double,_:String),Row(dt2:Double,_:String)) => dt1 < dt2
+    }
+    val resdata = aatAlgo.lcsBinary(seqLeft.sortWith(sortByDt),seqRight.sortWith(sortByDt),isEq)
+    (resdata.lcs,resdata.idxs)
+  }
+}
+
 //Longest Common String
 class LCString_Str extends UDF2[Seq[String],Seq[String], Map[String,Int]] {
   override def call(seq1: Seq[String],seq2: Seq[String]): Map[String,Int] = {
@@ -738,6 +791,11 @@ class LMV extends UDF1[Seq[Double], collection.mutable.Map[String,Double]] {
   }
 }
 
+class LMV_VarLowerBound extends UDF2[Seq[Double],Double,collection.mutable.Map[String,Double]] {
+  override def call(seq: Seq[Double],varLowerBound:Double): collection.mutable.Map[String,Double] = {
+    aatAlgo.lmv(seq,varLowerBound)
+  }
+}
 
 /*
 Graph 구조 관련 계산
