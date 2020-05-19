@@ -624,6 +624,18 @@ class LCS_DtNxlog extends UDF3[Seq[Row],Seq[Row],Int, Tuple2[Int,Seq[Seq[Int]]] 
   }
 }
 
+class LCS_DtNxlogNotSort extends UDF3[Seq[Row],Seq[Row],Int, Tuple2[Int,Seq[Seq[Int]]] ]{
+  override def call(seqLeft: Seq[Row],seqRight: Seq[Row],threshold:Int): Tuple2[Int,Seq[Seq[Int]]] = {
+    var thres = threshold.asInstanceOf[Double]
+    val isEq: (Row,Row) => Boolean = (a:Row,b:Row) => (a,b) match { case (Row(dt1:Double,nxlog1:String),Row(dt2:Double,nxlog2:String)) => (abs(dt1 - dt2) < thres ) && (nxlog1 == nxlog2)}
+    def sortByDt(r1:Row,r2:Row):Boolean = (r1,r2) match {
+      case (Row(dt1:Double,_:String),Row(dt2:Double,_:String)) => dt1 < dt2
+    }
+    val resdata = aatAlgo.lcsBinary(seqLeft,seqRight,isEq)
+    (resdata.lcs,resdata.idxs)
+  }
+}
+
 //Longest Common String
 class LCString_Str extends UDF2[Seq[String],Seq[String], Map[String,Int]] {
   override def call(seq1: Seq[String],seq2: Seq[String]): Map[String,Int] = {
