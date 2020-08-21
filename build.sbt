@@ -5,5 +5,5 @@ crossScalaVersions := Seq("2.11.8", "2.12.10")
 libraryDependencies  ++= Seq(
   "org.apache.spark" %% "spark-sql" % "2.4.3" % "provided"
 )
-assemblyJarName in assembly := "aatudfs-1.3.5-spark-sql-2.4.3.jar"
+assemblyJarName in assembly := "aatudfs-1.3.6-spark-sql-2.4.3.jar"
 test in assembly := {}

@@ -624,6 +624,19 @@ class LCS_DtNxlog extends UDF3[Seq[Row],Seq[Row],Int, Tuple2[Int,Seq[Seq[Int]]] 
   }
 }
 
+class LCS_DtNxlog2 extends UDF4[Seq[Row],Seq[Row],Int,Int, Tuple2[Int,Seq[Seq[Int]]] ]{
+  override def call(seqLeft: Seq[Row],seqRight: Seq[Row],threshold1:Int,threshold2:Int): Tuple2[Int,Seq[Seq[Int]]] = {
+    val thres1 = threshold1.asInstanceOf[Double]
+    val thres2 = threshold2.asInstanceOf[Double]
+    val isEq: (Row,Row) => Boolean = (a:Row,b:Row) => (a,b) match { case (Row(dt11:Double,dt21:Double,nxlog1:String),Row(dt12:Double,dt22:Double,nxlog2:String)) => (abs(dt11 - dt12) < thres1 ) && (abs(dt21 - dt22) < thres2 ) && (nxlog1 == nxlog2)}
+    def sortByDt(r1:Row,r2:Row):Boolean = (r1,r2) match {
+      case (Row(dt1:Double,_:String),Row(dt2:Double,_:String)) => dt1 < dt2
+    }
+    val resdata = aatAlgo.lcsBinary(seqLeft.sortWith(sortByDt),seqRight.sortWith(sortByDt),isEq)
+    (resdata.lcs,resdata.idxs)
+  }
+}
+
 class LCS_DtNxlogNotSort extends UDF3[Seq[Row],Seq[Row],Int, Tuple2[Int,Seq[Seq[Int]]] ]{
   override def call(seqLeft: Seq[Row],seqRight: Seq[Row],threshold:Int): Tuple2[Int,Seq[Seq[Int]]] = {
     var thres = threshold.asInstanceOf[Double]
