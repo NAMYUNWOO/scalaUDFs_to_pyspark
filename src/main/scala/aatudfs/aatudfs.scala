@@ -632,7 +632,7 @@ class LCS_DtNxlog2 extends UDF4[Seq[Row],Seq[Row],Int,Int, Tuple2[Int,Seq[Seq[In
     def sortByDt(r1:Row,r2:Row):Boolean = (r1,r2) match {
       case (Row(dt1:Double,_:String),Row(dt2:Double,_:String)) => dt1 < dt2
     }
-    val resdata = aatAlgo.lcsBinary(seqLeft.sortWith(sortByDt),seqRight.sortWith(sortByDt),isEq)
+    val resdata = aatAlgo.lcsBinary(seqLeft,seqRight,isEq)
     (resdata.lcs,resdata.idxs)
   }
 }
